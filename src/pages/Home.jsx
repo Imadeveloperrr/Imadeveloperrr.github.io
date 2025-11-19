@@ -17,7 +17,7 @@ function Home() {
           </FadeIn>
 
           <FadeIn delay={0.4}>
-            <h1>안녕하세요. 이성호의 Blog 입니다.</h1>
+            <h1>Welcome to Sungho Hub</h1>
           </FadeIn>
 
           <FadeIn delay={0.6}>

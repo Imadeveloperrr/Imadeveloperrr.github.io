@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion';
 import AnimatedPage from '../components/common/AnimatedPage';
 import FadeIn from '../components/ui/FadeIn';
 import SlideIn from '../components/ui/SlideIn';
@@ -9,6 +10,22 @@ function Blog() {
 
   return (
     <AnimatedPage>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.5, ease: 'easeInOut' }}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(11, 17, 32, 0.7)',
+          zIndex: -1,
+          pointerEvents: 'none'
+        }}
+      />
       <header className="hero">
         <FadeIn delay={0.2}>
           <h1>Blog</h1>

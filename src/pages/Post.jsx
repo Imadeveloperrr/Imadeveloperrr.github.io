@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import AnimatedPage from '../components/common/AnimatedPage';
 import FadeIn from '../components/ui/FadeIn';
 import { getPostBySlug, formatDate } from '../utils/posts';
@@ -46,6 +47,22 @@ function Post() {
 
   return (
     <AnimatedPage>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.5, ease: 'easeInOut' }}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: '#0a0f1a',
+          zIndex: -1,
+          pointerEvents: 'none'
+        }}
+      />
       <article>
         <FadeIn delay={0.2}>
           <Link to="/blog" style={{
@@ -104,7 +121,10 @@ function Post() {
           <section className="panel" style={{
             maxWidth: '100%',
             margin: '0',
-            lineHeight: '1.8'
+            fontSize: '1em',
+            lineHeight: '1.4',
+            fontWeight: '400',
+            fontFamily: "'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
           }}>
             <Content />
           </section>

@@ -17,7 +17,7 @@ function Home() {
           </FadeIn>
 
           <FadeIn delay={0.4}>
-            <h1>Hello, world!</h1>
+            <h1>안녕하세요. 이성호의 Blog 입니다.</h1>
           </FadeIn>
 
           <FadeIn delay={0.6}>
@@ -41,6 +41,7 @@ function Home() {
             <h2>About Me</h2>
             <ul>
               <li>Full-stack Developer</li>
+              <li>소프트웨어전공</li>
               <li>정보처리기사 (2025)</li>
               <li>SQLD (2025)</li>
             </ul>

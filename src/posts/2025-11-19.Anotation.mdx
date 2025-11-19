@@ -1,0 +1,1196 @@
+---
+title: "어노테이션과 Spring 기초 용어 가이드"
+date: "2025-11-19"
+author: "Sungho"
+tags: ["Spring", "Anotation", "java"]
+description: "Complete guide to Spring and Anotation"
+---
+
+# 어노테이션과 Spring 기초 용어 완벽 가이드
+
+## 목차
+1. [기초 용어 설명](#1-기초-용어-설명)
+2. [어노테이션 기본 개념](#2-어노테이션-기본-개념)
+3. [어노테이션 작동 원리](#3-어노테이션-작동-원리)
+4. [커스텀 어노테이션 만들기](#4-커스텀-어노테이션-만들기)
+5. [실전 예제](#5-실전-예제)
+
+---
+
+## 1. 기초 용어 설명
+
+### 1.1 리플렉션 (Reflection)
+
+**한 줄 요약:** 프로그램 실행 중에 클래스 정보를 들여다보고 조작하는 기능
+
+**비유:**
+- 일반적인 코드: 설계도를 보고 집을 짓는 것
+- 리플렉션: 이미 지어진 집의 구조를 분석하고, 벽을 뚫거나 문을 추가하는 것
+
+**예시로 이해하기:**
+
+```java
+// 일반적인 방법 (컴파일 타임에 이미 알고 있음)
+Product product = new Product();
+product.setName("상품1");
+String name = product.getName();
+```
+
+```java
+// 리플렉션 (실행 중에 클래스 정보를 읽음)
+Class<?> clazz = Class.forName("com.example.Product");  // 클래스 로딩
+Object obj = clazz.getDeclaredConstructor().newInstance();  // 객체 생성
+
+// 메서드 정보 가져오기
+Method setNameMethod = clazz.getMethod("setName", String.class);
+setNameMethod.invoke(obj, "상품1");  // 메서드 호출
+
+// 필드 정보 가져오기
+Field nameField = clazz.getDeclaredField("name");
+nameField.setAccessible(true);  // private도 접근 가능하게
+nameField.set(obj, "상품1");  // 직접 값 설정
+```
+
+**왜 필요한가?**
+- Spring이 `@Autowired`를 보고 자동으로 객체를 주입할 때
+- JPA가 엔티티 클래스를 보고 자동으로 SQL을 만들 때
+- Jackson이 JSON을 객체로 변환할 때
+
+**장점:**
+- 동적으로 코드 작성 가능
+- 프레임워크가 범용적으로 동작 가능
+
+**단점:**
+- 느림 (일반 메서드 호출보다 10~100배)
+- 컴파일 시점에 에러 체크 불가
+
+---
+
+### 1.2 프록시 (Proxy)
+
+**한 줄 요약:** 실제 객체를 감싸서 대신 일을 처리하는 대리인
+
+**비유:**
+- 실제 객체: 연예인
+- 프록시: 매니저
+- 클라이언트가 연예인한테 요청하면 → 매니저가 받아서 → 연예인한테 전달 → 결과를 다시 클라이언트에게
+
+**그림으로 이해:**
+```
+[클라이언트] → [프록시] → [실제 객체]
+                  ↑
+              추가 작업 가능
+              (로깅, 트랜잭션, 캐싱 등)
+```
+
+**코드로 이해:**
+
+```java
+// 실제 객체 (Real Object)
+public class UserService {
+    public void updateUser(String name) {
+        System.out.println("사용자 업데이트: " + name);
+    }
+}
+```
+
+```java
+// 프록시 객체 (Proxy)
+public class UserServiceProxy extends UserService {
+    private UserService realService = new UserService();
+
+    @Override
+    public void updateUser(String name) {
+        // Before: 추가 작업
+        System.out.println("트랜잭션 시작");
+        long startTime = System.currentTimeMillis();
+
+        // 실제 메서드 호출
+        realService.updateUser(name);
+
+        // After: 추가 작업
+        long endTime = System.currentTimeMillis();
+        System.out.println("트랜잭션 커밋");
+        System.out.println("실행시간: " + (endTime - startTime) + "ms");
+    }
+}
+```
+
+```java
+// 사용
+UserService service = new UserServiceProxy();  // 프록시를 사용
+service.updateUser("홍길동");
+
+// 출력:
+// 트랜잭션 시작
+// 사용자 업데이트: 홍길동
+// 트랜잭션 커밋
+// 실행시간: 5ms
+```
+
+**Spring에서 프록시 생성 방법:**
+
+1. **JDK Dynamic Proxy** (인터페이스가 있을 때)
+```java
+public interface UserService {
+    void updateUser(String name);
+}
+
+// Spring이 자동으로 프록시 생성
+```
+
+2. **CGLIB Proxy** (인터페이스가 없을 때)
+```java
+public class UserService {  // 인터페이스 없음
+    public void updateUser(String name) { }
+}
+
+// Spring이 상속받은 프록시 클래스 생성
+// UserService$$EnhancerBySpringCGLIB$$12345
+```
+
+**프록시가 사용되는 곳:**
+- `@Transactional`: 트랜잭션 시작/커밋/롤백
+- `@Cacheable`: 캐시 읽기/쓰기
+- `@Async`: 비동기 실행
+- `@Secured`: 권한 체크
+
+---
+
+### 1.3 AOP (Aspect Oriented Programming)
+
+**한 줄 요약:** 여러 곳에서 반복되는 코드를 한 곳에 모아서 관리하는 프로그래밍 방식
+
+**비유:**
+- 기존 방식: 모든 방에 각각 보안 카메라 설치
+- AOP: 중앙 관제실에서 모든 방을 한 번에 모니터링
+
+**문제 상황:**
+
+```java
+public class UserService {
+    public void createUser() {
+        System.out.println("트랜잭션 시작");  // 반복
+        System.out.println("로깅");          // 반복
+
+        // 실제 비즈니스 로직
+        userRepository.save(user);
+
+        System.out.println("트랜잭션 종료");  // 반복
+    }
+
+    public void updateUser() {
+        System.out.println("트랜잭션 시작");  // 반복
+        System.out.println("로깅");          // 반복
+
+        // 실제 비즈니스 로직
+        userRepository.update(user);
+
+        System.out.println("트랜잭션 종료");  // 반복
+    }
+}
+```
+
+**AOP로 해결:**
+
+```java
+// 비즈니스 로직만 남김
+public class UserService {
+    public void createUser() {
+        userRepository.save(user);
+    }
+
+    public void updateUser() {
+        userRepository.update(user);
+    }
+}
+
+// 공통 로직은 AOP로 분리
+@Aspect
+@Component
+public class TransactionAspect {
+    @Around("execution(* com.example.service.*.*(..))")  // 모든 서비스 메서드에 적용
+    public Object handleTransaction(ProceedingJoinPoint joinPoint) throws Throwable {
+        System.out.println("트랜잭션 시작");
+        System.out.println("로깅");
+
+        Object result = joinPoint.proceed();  // 실제 메서드 실행
+
+        System.out.println("트랜잭션 종료");
+        return result;
+    }
+}
+```
+
+**AOP 주요 용어:**
+
+| 용어 | 설명 | 예시 |
+|------|------|------|
+| Aspect | 공통 관심사 | 트랜잭션, 로깅, 보안 |
+| JoinPoint | 실행 시점 | 메서드 호출 시점 |
+| Advice | 실제 동작 | @Before, @After, @Around |
+| Pointcut | 적용 위치 | 어떤 메서드에 적용할지 |
+
+**Advice 종류:**
+
+```java
+@Aspect
+@Component
+public class LoggingAspect {
+
+    // Before: 메서드 실행 전
+    @Before("execution(* com.example.service.*.*(..))")
+    public void logBefore(JoinPoint joinPoint) {
+        System.out.println("메서드 시작: " + joinPoint.getSignature().getName());
+    }
+
+    // After: 메서드 실행 후 (예외 발생해도 실행)
+    @After("execution(* com.example.service.*.*(..))")
+    public void logAfter(JoinPoint joinPoint) {
+        System.out.println("메서드 종료: " + joinPoint.getSignature().getName());
+    }
+
+    // AfterReturning: 정상 종료 후
+    @AfterReturning(value = "execution(* com.example.service.*.*(..))", returning = "result")
+    public void logReturn(JoinPoint joinPoint, Object result) {
+        System.out.println("반환값: " + result);
+    }
+
+    // AfterThrowing: 예외 발생 후
+    @AfterThrowing(value = "execution(* com.example.service.*.*(..))", throwing = "ex")
+    public void logException(JoinPoint joinPoint, Exception ex) {
+        System.out.println("예외 발생: " + ex.getMessage());
+    }
+
+    // Around: 메서드 실행 전후 모두 제어 (가장 강력)
+    @Around("execution(* com.example.service.*.*(..))")
+    public Object logAround(ProceedingJoinPoint joinPoint) throws Throwable {
+        System.out.println("Before");
+        Object result = joinPoint.proceed();  // 메서드 실행
+        System.out.println("After");
+        return result;
+    }
+}
+```
+
+---
+
+### 1.4 메타데이터 (Metadata)
+
+**한 줄 요약:** 데이터에 대한 데이터 (데이터를 설명하는 정보)
+
+**비유:**
+- 실제 데이터: 책의 내용
+- 메타데이터: 책의 제목, 저자, 출판일, ISBN
+
+**예시:**
+
+```java
+// 이건 실제 데이터 (코드)
+public void updateUser() {
+    userRepository.save(user);
+}
+
+// 이건 메타데이터 (코드에 대한 정보)
+@Transactional  // "이 메서드는 트랜잭션이 필요해요"
+@LogExecutionTime  // "이 메서드의 실행 시간을 측정해주세요"
+public void updateUser() {
+    userRepository.save(user);
+}
+```
+
+**다른 예시들:**
+
+```java
+// DB 테이블 메타데이터
+@Entity  // "이건 DB 테이블이에요"
+@Table(name = "users")  // "테이블 이름은 users예요"
+public class User {
+    @Id  // "이건 Primary Key예요"
+    @GeneratedValue(strategy = GenerationType.IDENTITY)  // "자동 증가해요"
+    private Long id;
+
+    @Column(nullable = false, length = 50)  // "NULL 불가, 길이 50"
+    private String name;
+}
+```
+
+---
+
+### 1.5 컴파일 타임 vs 런타임
+
+**컴파일 타임 (Compile Time):**
+- 코드를 작성하고 빌드할 때
+- .java 파일 → .class 파일로 변환
+- IDE에서 빨간줄 뜨는 시점
+
+```java
+// 컴파일 타임 에러
+String name = 123;  // 타입 오류! IDE가 바로 알려줌
+```
+
+**런타임 (Runtime):**
+- 프로그램이 실제로 실행되는 시점
+- 사용자가 버튼을 누르거나 API를 호출할 때
+
+```java
+// 런타임 에러
+String name = "홍길동";
+int length = Integer.parseInt(name);  // 실행해봐야 에러 발생
+```
+
+**어노테이션의 @Retention:**
+
+```java
+@Retention(RetentionPolicy.SOURCE)  // 컴파일하면 사라짐
+public @interface Override { }
+
+@Retention(RetentionPolicy.CLASS)  // .class에는 남지만 실행 중엔 없음
+public @interface NonNull { }
+
+@Retention(RetentionPolicy.RUNTIME)  // 실행 중에도 읽을 수 있음
+public @interface Transactional { }
+```
+
+---
+
+## 2. 어노테이션 기본 개념
+
+### 2.1 어노테이션이란?
+
+어노테이션은 Java 코드에 **메타데이터**를 붙이는 방법입니다. `@` 기호로 시작하고, 코드에 추가 정보를 제공해요.
+
+```java
+// 어노테이션 없는 평범한 메서드
+public void updateUser() {
+    userRepository.save(user);
+}
+
+// 어노테이션이 붙은 메서드
+@Transactional  // Spring이 읽어서 트랜잭션 처리
+@CacheEvict("users")  // Spring이 읽어서 캐시 삭제
+public void updateUser() {
+    userRepository.save(user);
+}
+```
+
+**핵심:** 어노테이션 자체는 아무 동작도 안 해요. 누군가(프레임워크)가 읽어서 처리해야 의미가 있어요.
+
+---
+
+### 2.2 어노테이션 정의하기
+
+```java
+import java.lang.annotation.*;
+
+// @Target: 어디에 붙일 수 있는지
+@Target({
+    ElementType.METHOD,        // 메서드
+    ElementType.TYPE,          // 클래스, 인터페이스
+    ElementType.FIELD,         // 필드
+    ElementType.PARAMETER,     // 파라미터
+    ElementType.CONSTRUCTOR    // 생성자
+})
+
+// @Retention: 언제까지 유지되는지
+@Retention(RetentionPolicy.RUNTIME)  // 실행 중에도 읽을 수 있음
+
+// @Documented: JavaDoc에 포함
+@Documented
+
+// @Inherited: 하위 클래스도 상속
+@Inherited
+
+public @interface MyAnnotation {
+    // 파라미터 정의
+    String value() default "";           // 기본 파라미터
+    int timeout() default 1000;          // 기본값 1000
+    String[] tags() default {};          // 배열
+    RetryPolicy retry() default RetryPolicy.ONCE;  // Enum
+}
+
+// 사용
+@MyAnnotation(value = "test", timeout = 5000, tags = {"important", "slow"})
+public void someMethod() { }
+```
+
+---
+
+## 3. 어노테이션 작동 원리
+
+### 3.1 전체 흐름
+
+```
+1. 개발자가 코드 작성
+   ↓
+   @Transactional
+   public void updateUser() { }
+
+2. 애플리케이션 시작
+   ↓
+   Spring이 모든 클래스 스캔 (리플렉션)
+
+3. 어노테이션 발견
+   ↓
+   "updateUser 메서드에 @Transactional이 있네?"
+
+4. 프록시 객체 생성
+   ↓
+   UserService$$Proxy 클래스 동적 생성
+
+5. Bean 등록
+   ↓
+   Spring 컨테이너에 프록시 등록
+
+6. 실행
+   ↓
+   프록시가 트랜잭션 시작 → 실제 메서드 실행 → 트랜잭션 커밋
+```
+
+---
+
+### 3.2 리플렉션으로 어노테이션 읽기
+
+```java
+public class AnnotationReader {
+    public static void main(String[] args) throws Exception {
+        // 1. 클래스 정보 가져오기
+        Class<?> clazz = UserService.class;
+
+        // 2. 메서드 정보 가져오기
+        Method method = clazz.getMethod("updateUser");
+
+        // 3. 어노테이션 확인
+        if (method.isAnnotationPresent(Transactional.class)) {
+            System.out.println("이 메서드는 트랜잭션이 필요합니다!");
+
+            // 4. 어노테이션 상세 정보 읽기
+            Transactional annotation = method.getAnnotation(Transactional.class);
+            System.out.println("격리 수준: " + annotation.isolation());
+            System.out.println("전파 방식: " + annotation.propagation());
+            System.out.println("읽기 전용: " + annotation.readOnly());
+        }
+
+        // 5. 모든 어노테이션 조회
+        Annotation[] annotations = method.getAnnotations();
+        for (Annotation ann : annotations) {
+            System.out.println("발견된 어노테이션: " + ann.annotationType().getName());
+        }
+    }
+}
+```
+
+**출력:**
+```
+이 메서드는 트랜잭션이 필요합니다!
+격리 수준: DEFAULT
+전파 방식: REQUIRED
+읽기 전용: false
+발견된 어노테이션: org.springframework.transaction.annotation.Transactional
+발견된 어노테이션: org.springframework.cache.annotation.CacheEvict
+```
+
+---
+
+### 3.3 프록시로 어노테이션 처리
+
+**Before: 원본 클래스**
+```java
+@Service
+public class UserService {
+    @Transactional
+    public void updateUser(User user) {
+        userRepository.save(user);
+    }
+}
+```
+
+**After: Spring이 만드는 프록시**
+```java
+// Spring이 런타임에 자동 생성 (개발자가 작성하지 않음)
+public class UserService$$SpringCGLIB$$123 extends UserService {
+
+    private UserService target = new UserService();  // 실제 객체
+    private TransactionManager txManager;
+
+    @Override
+    public void updateUser(User user) {
+        // Before: 트랜잭션 시작
+        TransactionStatus status = txManager.getTransaction();
+
+        try {
+            // 실제 메서드 호출
+            target.updateUser(user);
+
+            // After: 트랜잭션 커밋
+            txManager.commit(status);
+        } catch (Exception e) {
+            // Exception: 트랜잭션 롤백
+            txManager.rollback(status);
+            throw e;
+        }
+    }
+}
+```
+
+**실제 사용:**
+```java
+@Controller
+public class UserController {
+    @Autowired
+    private UserService userService;  // 실제로는 프록시가 주입됨
+
+    public void handleRequest() {
+        userService.updateUser(user);  // 프록시의 메서드가 호출됨
+    }
+}
+```
+
+---
+
+### 3.4 Spring이 어노테이션을 처리하는 실제 코드 (의사코드)
+
+```java
+// Spring 내부 (실제로는 더 복잡함)
+public class BeanPostProcessor {
+
+    public Object postProcessAfterInitialization(Object bean, String beanName) {
+        Class<?> clazz = bean.getClass();
+
+        // 모든 메서드 순회
+        for (Method method : clazz.getMethods()) {
+
+            // @Transactional 체크
+            if (method.isAnnotationPresent(Transactional.class)) {
+                return createTransactionalProxy(bean);
+            }
+
+            // @Cacheable 체크
+            if (method.isAnnotationPresent(Cacheable.class)) {
+                return createCacheableProxy(bean);
+            }
+
+            // @Async 체크
+            if (method.isAnnotationPresent(Async.class)) {
+                return createAsyncProxy(bean);
+            }
+        }
+
+        return bean;  // 어노테이션 없으면 원본 반환
+    }
+
+    private Object createTransactionalProxy(Object target) {
+        return Proxy.newProxyInstance(
+            target.getClass().getClassLoader(),
+            target.getClass().getInterfaces(),
+            (proxy, method, args) -> {
+                // Before: 트랜잭션 시작
+                TransactionManager.begin();
+
+                try {
+                    // 실제 메서드 호출
+                    Object result = method.invoke(target, args);
+
+                    // After: 트랜잭션 커밋
+                    TransactionManager.commit();
+
+                    return result;
+                } catch (Exception e) {
+                    // Exception: 트랜잭션 롤백
+                    TransactionManager.rollback();
+                    throw e;
+                }
+            }
+        );
+    }
+}
+```
+
+---
+
+## 4. 커스텀 어노테이션 만들기
+
+### 4.1 실전 예제: @LogExecutionTime
+
+실행 시간을 자동으로 측정하고 로그로 남기는 어노테이션을 만들어봅시다.
+
+#### Step 1: 어노테이션 정의
+
+```java
+package com.example.annotation;
+
+import java.lang.annotation.*;
+
+@Target(ElementType.METHOD)  // 메서드에만 사용
+@Retention(RetentionPolicy.RUNTIME)  // 런타임에 읽을 수 있음
+public @interface LogExecutionTime {
+    String value() default "";  // 추가 메시지 (선택)
+}
+```
+
+#### Step 2: AOP로 처리 로직 구현
+
+```java
+package com.example.annotation;
+
+import lombok.extern.slf4j.Slf4j;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.stereotype.Component;
+
+@Aspect
+@Component
+@Slf4j
+public class LogExecutionTimeAspect {
+
+    @Around("@annotation(LogExecutionTime)")
+    public Object logExecutionTime(ProceedingJoinPoint joinPoint) throws Throwable {
+        // 메서드 정보 가져오기
+        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+        String methodName = signature.getMethod().getName();
+        String className = signature.getDeclaringType().getSimpleName();
+
+        // 어노테이션 정보 가져오기
+        LogExecutionTime annotation = signature.getMethod().getAnnotation(LogExecutionTime.class);
+        String message = annotation.value();
+
+        // 시작 시간 기록
+        long startTime = System.currentTimeMillis();
+
+        log.info("🚀 [{}#{}] 시작 {}", className, methodName,
+                 message.isEmpty() ? "" : "- " + message);
+
+        try {
+            // 실제 메서드 실행
+            Object result = joinPoint.proceed();
+
+            // 종료 시간 계산
+            long endTime = System.currentTimeMillis();
+            long executionTime = endTime - startTime;
+
+            log.info("✅ [{}#{}] 완료 ({}ms)", className, methodName, executionTime);
+
+            // 느린 메서드 경고
+            if (executionTime > 3000) {
+                log.warn("⚠️ [{}#{}] 실행 시간이 3초를 초과했습니다: {}ms",
+                        className, methodName, executionTime);
+            }
+
+            return result;
+
+        } catch (Exception e) {
+            long endTime = System.currentTimeMillis();
+            long executionTime = endTime - startTime;
+
+            log.error("❌ [{}#{}] 실패 ({}ms): {}",
+                     className, methodName, executionTime, e.getMessage());
+            throw e;
+        }
+    }
+}
+```
+
+#### Step 3: 사용
+
+```java
+@Service
+public class ProductService {
+
+    @LogExecutionTime("상품 조회")
+    public Product getProduct(Long id) {
+        // 복잡한 로직
+        return productRepository.findById(id).orElseThrow();
+    }
+
+    @LogExecutionTime("상품 목록 조회")
+    public List<Product> getAllProducts() {
+        return productRepository.findAll();
+    }
+
+    @LogExecutionTime  // value 없이도 사용 가능
+    public void updateProduct(Product product) {
+        productRepository.save(product);
+    }
+}
+```
+
+#### 실행 결과:
+
+```
+2025-01-15 10:30:00 INFO  🚀 [ProductService#getProduct] 시작 - 상품 조회
+2025-01-15 10:30:02 INFO  ✅ [ProductService#getProduct] 완료 (2000ms)
+
+2025-01-15 10:30:05 INFO  🚀 [ProductService#getAllProducts] 시작 - 상품 목록 조회
+2025-01-15 10:30:09 WARN  ⚠️ [ProductService#getAllProducts] 실행 시간이 3초를 초과했습니다: 4000ms
+2025-01-15 10:30:09 INFO  ✅ [ProductService#getAllProducts] 완료 (4000ms)
+```
+
+---
+
+### 4.2 실전 예제: @ValidStock
+
+재고 검증 어노테이션을 만들어봅시다.
+
+#### Step 1: 어노테이션 정의
+
+```java
+package com.example.annotation;
+
+import javax.validation.Constraint;
+import javax.validation.Payload;
+import java.lang.annotation.*;
+
+@Target({ElementType.FIELD, ElementType.PARAMETER})
+@Retention(RetentionPolicy.RUNTIME)
+@Constraint(validatedBy = StockValidator.class)  // 검증 로직 연결
+public @interface ValidStock {
+
+    String message() default "재고가 부족합니다";  // 기본 에러 메시지
+
+    Class<?>[] groups() default {};  // Validation Groups
+
+    Class<? extends Payload>[] payload() default {};
+
+    int min() default 1;  // 최소 재고
+
+    int max() default Integer.MAX_VALUE;  // 최대 재고
+}
+```
+
+#### Step 2: 검증 로직 구현
+
+```java
+package com.example.annotation;
+
+import javax.validation.ConstraintValidator;
+import javax.validation.ConstraintValidatorContext;
+
+public class StockValidator implements ConstraintValidator<ValidStock, Integer> {
+
+    private int min;
+    private int max;
+
+    @Override
+    public void initialize(ValidStock annotation) {
+        this.min = annotation.min();
+        this.max = annotation.max();
+    }
+
+    @Override
+    public boolean isValid(Integer value, ConstraintValidatorContext context) {
+        // null은 @NotNull로 검증하므로 여기서는 통과
+        if (value == null) {
+            return true;
+        }
+
+        // 범위 검증
+        if (value < min) {
+            context.disableDefaultConstraintViolation();
+            context.buildConstraintViolationWithTemplate(
+                String.format("재고는 최소 %d개 이상이어야 합니다", min)
+            ).addConstraintViolation();
+            return false;
+        }
+
+        if (value > max) {
+            context.disableDefaultConstraintViolation();
+            context.buildConstraintViolationWithTemplate(
+                String.format("재고는 최대 %d개까지 가능합니다", max)
+            ).addConstraintViolation();
+            return false;
+        }
+
+        return true;
+    }
+}
+```
+
+#### Step 3: 사용
+
+```java
+@Data
+public class OrderRequest {
+
+    @NotNull(message = "상품 ID는 필수입니다")
+    private Long productId;
+
+    @ValidStock(min = 1, max = 100, message = "주문 수량은 1~100개 사이여야 합니다")
+    private Integer quantity;
+}
+```
+
+```java
+@RestController
+@RequestMapping("/api/orders")
+public class OrderController {
+
+    @PostMapping
+    public ResponseEntity<?> createOrder(@Valid @RequestBody OrderRequest request) {
+        // @Valid가 자동으로 @ValidStock 검증을 수행
+        orderService.createOrder(request);
+        return ResponseEntity.ok("주문 성공");
+    }
+}
+```
+
+#### 에러 응답:
+
+```json
+{
+  "status": 400,
+  "message": "Validation Failed",
+  "errors": [
+    {
+      "field": "quantity",
+      "message": "재고는 최소 1개 이상이어야 합니다"
+    }
+  ]
+}
+```
+
+---
+
+### 4.3 실전 예제: @RateLimit
+
+API 호출 횟수를 제한하는 어노테이션을 만들어봅시다.
+
+#### Step 1: 어노테이션 정의
+
+```java
+package com.example.annotation;
+
+import java.lang.annotation.*;
+import java.util.concurrent.TimeUnit;
+
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface RateLimit {
+
+    int value() default 10;  // 허용 횟수
+
+    long period() default 60;  // 시간 (초)
+
+    TimeUnit unit() default TimeUnit.SECONDS;
+
+    String key() default "";  // Redis 키 (비워두면 메서드명 사용)
+}
+```
+
+#### Step 2: AOP로 처리 로직 구현
+
+```java
+package com.example.annotation;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Component;
+
+import java.time.Duration;
+
+@Aspect
+@Component
+@Slf4j
+@RequiredArgsConstructor
+public class RateLimitAspect {
+
+    private final StringRedisTemplate redisTemplate;
+
+    @Around("@annotation(RateLimit)")
+    public Object rateLimit(ProceedingJoinPoint joinPoint) throws Throwable {
+        // 메서드 정보 가져오기
+        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+        RateLimit annotation = signature.getMethod().getAnnotation(RateLimit.class);
+
+        // Redis 키 생성
+        String key = annotation.key().isEmpty()
+            ? "rate_limit:" + signature.getMethod().getName()
+            : "rate_limit:" + annotation.key();
+
+        // 현재 카운트 조회
+        String countStr = redisTemplate.opsForValue().get(key);
+        int currentCount = countStr == null ? 0 : Integer.parseInt(countStr);
+
+        // 제한 확인
+        if (currentCount >= annotation.value()) {
+            log.warn("Rate limit exceeded for key: {}", key);
+            throw new RateLimitExceededException(
+                String.format("API 호출 제한을 초과했습니다. (%d초 후 다시 시도하세요)",
+                             annotation.period())
+            );
+        }
+
+        // 카운트 증가
+        redisTemplate.opsForValue().increment(key);
+
+        // 첫 요청이면 TTL 설정
+        if (currentCount == 0) {
+            redisTemplate.expire(key, Duration.ofSeconds(annotation.period()));
+        }
+
+        log.info("Rate limit check passed: {}/{} (key: {})",
+                currentCount + 1, annotation.value(), key);
+
+        // 실제 메서드 실행
+        return joinPoint.proceed();
+    }
+}
+```
+
+#### Step 3: 사용
+
+```java
+@RestController
+@RequestMapping("/api/products")
+public class ProductController {
+
+    @GetMapping("/{id}")
+    @RateLimit(value = 100, period = 60)  // 1분에 100번
+    public Product getProduct(@PathVariable Long id) {
+        return productService.getProduct(id);
+    }
+
+    @PostMapping
+    @RateLimit(value = 10, period = 60)  // 1분에 10번
+    public Product createProduct(@RequestBody Product product) {
+        return productService.createProduct(product);
+    }
+}
+```
+
+---
+
+## 5. 실전 예제
+
+### 5.1 Spring 주요 어노테이션 작동 원리
+
+#### @Transactional
+
+```java
+// 사용
+@Transactional
+public void transferMoney(Long fromId, Long toId, int amount) {
+    accountRepository.withdraw(fromId, amount);
+    accountRepository.deposit(toId, amount);
+}
+
+// Spring이 생성하는 프록시
+public void transferMoney(Long fromId, Long toId, int amount) {
+    TransactionStatus status = txManager.getTransaction();
+    try {
+        // 실제 메서드
+        accountRepository.withdraw(fromId, amount);
+        accountRepository.deposit(toId, amount);
+
+        txManager.commit(status);
+    } catch (Exception e) {
+        txManager.rollback(status);
+        throw e;
+    }
+}
+```
+
+#### @Cacheable
+
+```java
+// 사용
+@Cacheable(value = "products", key = "#id")
+public Product getProduct(Long id) {
+    return productRepository.findById(id).orElseThrow();
+}
+
+// Spring이 생성하는 프록시
+public Product getProduct(Long id) {
+    // 캐시 확인
+    Product cached = cacheManager.get("products", id);
+    if (cached != null) {
+        return cached;  // 캐시 히트
+    }
+
+    // 실제 메서드 실행
+    Product result = productRepository.findById(id).orElseThrow();
+
+    // 캐시 저장
+    cacheManager.put("products", id, result);
+
+    return result;
+}
+```
+
+#### @Async
+
+```java
+// 사용
+@Async
+public CompletableFuture<String> sendEmail(String to) {
+    // 이메일 발송 (시간 오래 걸림)
+    emailService.send(to);
+    return CompletableFuture.completedFuture("발송 완료");
+}
+
+// Spring이 생성하는 프록시
+public CompletableFuture<String> sendEmail(String to) {
+    return CompletableFuture.supplyAsync(() -> {
+        // 별도 스레드에서 실행
+        emailService.send(to);
+        return "발송 완료";
+    }, taskExecutor);
+}
+```
+
+---
+
+### 5.2 여러 어노테이션 조합
+
+```java
+@Service
+@Slf4j
+public class UserService {
+
+    @Transactional(readOnly = true)
+    @Cacheable(value = "users", key = "#id")
+    @LogExecutionTime("사용자 조회")
+    public User getUser(Long id) {
+        return userRepository.findById(id).orElseThrow();
+    }
+
+    @Transactional
+    @CacheEvict(value = "users", key = "#user.id")
+    @LogExecutionTime("사용자 업데이트")
+    public User updateUser(User user) {
+        return userRepository.save(user);
+    }
+
+    @Async
+    @RateLimit(value = 5, period = 60)
+    @LogExecutionTime("이메일 발송")
+    public CompletableFuture<Void> sendWelcomeEmail(User user) {
+        emailService.send(user.getEmail(), "환영합니다!");
+        return CompletableFuture.completedFuture(null);
+    }
+}
+```
+
+**실행 순서:**
+1. Rate Limit 체크
+2. Async 프록시 생성 (별도 스레드)
+3. Transaction 시작
+4. Cache 확인
+5. LogExecutionTime 시작
+6. 실제 메서드 실행
+7. LogExecutionTime 종료
+8. Cache 저장
+9. Transaction 커밋
+
+---
+
+### 5.3 주의사항
+
+#### 1. Self Invocation 문제
+
+```java
+@Service
+public class UserService {
+
+    // 외부에서 호출하면 프록시 동작함 ✅
+    public void externalMethod() {
+        internalMethod();  // 내부 호출은 프록시 안 거침 ❌
+    }
+
+    @Transactional
+    private void internalMethod() {
+        // 트랜잭션 안 걸림!
+    }
+}
+```
+
+**해결 방법:**
+```java
+@Service
+@RequiredArgsConstructor
+public class UserService {
+
+    private final UserService self;  // 자기 자신 주입
+
+    public void externalMethod() {
+        self.internalMethod();  // 프록시를 통해 호출 ✅
+    }
+
+    @Transactional
+    public void internalMethod() {
+        // 트랜잭션 정상 동작
+    }
+}
+```
+
+#### 2. private 메서드는 프록시 안 됨
+
+```java
+@Service
+public class UserService {
+
+    @Transactional  // 동작 안 함 ❌
+    private void privateMethod() {
+        // ...
+    }
+
+    @Transactional  // 정상 동작 ✅
+    public void publicMethod() {
+        // ...
+    }
+}
+```
+
+#### 3. final 클래스/메서드는 CGLIB 프록시 불가
+
+```java
+@Service
+public final class UserService {  // CGLIB는 상속 불가 ❌
+
+    @Transactional
+    public final void updateUser() {  // 오버라이드 불가 ❌
+        // ...
+    }
+}
+```
+
+---
+
+## 6. 정리
+
+### 핵심 개념 요약
+
+| 개념 | 설명 | 비유 |
+|------|------|------|
+| 리플렉션 | 실행 중에 클래스 정보를 읽고 조작 | 완성된 집의 구조를 분석하는 건축가 |
+| 프록시 | 실제 객체를 감싸는 대리인 | 연예인의 매니저 |
+| AOP | 공통 로직을 한 곳에 모아 관리 | 중앙 관제실 |
+| 메타데이터 | 데이터에 대한 데이터 | 책의 제목, 저자 정보 |
+| 어노테이션 | 코드에 메타데이터를 붙이는 방법 | 포스트잇 메모 |
+
+### 어노테이션 처리 흐름
+
+```
+1. 개발자: 어노테이션 정의 (@interface)
+2. 개발자: 코드에 어노테이션 붙임 (@Transactional)
+3. Spring: 리플렉션으로 어노테이션 읽음
+4. Spring: 프록시 객체 생성 (CGLIB/JDK Dynamic Proxy)
+5. Spring: Bean 컨테이너에 프록시 등록
+6. 실행: 프록시가 추가 동작 수행 후 실제 메서드 호출
+```
+
+### 커스텀 어노테이션 만들기 체크리스트
+
+- [ ] 어노테이션 정의 (@interface)
+- [ ] @Target 지정 (어디에 붙일지)
+- [ ] @Retention 지정 (언제까지 유지할지)
+- [ ] 파라미터 정의 (필요시)
+- [ ] 처리 로직 구현 (AOP Aspect 또는 Validator)
+- [ ] 테스트 작성
+

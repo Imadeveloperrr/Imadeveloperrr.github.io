@@ -1,0 +1,312 @@
+---
+title: "Git Guide"
+date: "2025-11-19"
+author: "Sungho"
+tags: ["git", "github"]
+description: "git 실무 가이드"
+---
+
+# Git 실무 가이드
+
+## 1. Git 기본 구조
+
+```
+작업 디렉토리          스테이징 영역           저장소
+(Working Dir)      (Staging Area)        (Repository)
+    |                    |                    |
+  파일 수정    →    git add    →       git commit
+```
+
+### 현재 상태 확인
+```bash
+git status
+
+# 결과:
+# 빨간색 M: 수정했지만 스테이징 안됨
+# 초록색 M: 스테이징됨 (커밋 준비 완료)
+```
+
+---
+
+## 2. 커밋 메시지 규칙 (Conventional Commits)
+
+### 주요 타입
+```bash
+feat:      새로운 기능 추가
+fix:       버그 수정
+docs:      문서 수정
+style:     코드 포맷팅 (동작 변경 없음)
+refactor:  코드 리팩토링
+test:      테스트 추가/수정
+chore:     빌드, 설정 파일 수정
+perf:      성능 개선
+```
+
+### 작성 형식
+```bash
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+### 예시
+```bash
+# 간단
+feat: Add user login feature
+fix: Resolve null pointer exception in ProductService
+
+# 상세 (scope 포함)
+feat(auth): Add JWT token refresh logic
+fix(payment): Handle TossPayments timeout error
+
+# 본문 포함
+feat: Add product recommendation system
+
+Integrate OpenAI API for AI-based recommendations
+Use pgvector for similarity search
+```
+
+### 명령문 규칙
+```bash
+# Good ✅ (명령문 - 동사 원형)
+Add user authentication
+Fix null pointer bug
+Update README
+
+# Bad ❌ (과거형/진행형)
+Added user authentication
+Fixed null pointer bug
+Updating README
+```
+
+**팁**: "This commit will..." 뒤에 붙여서 자연스러우면 OK
+
+---
+
+## 3. PR 생성 프로세스
+
+### 전체 흐름
+```bash
+# 1. 새 브랜치 생성 및 전환
+git checkout -b feature/feature-name
+
+# 2. 작업 후 스테이징
+git add .                              # 모든 파일
+git add README.md                      # 특정 파일
+git add src/                          # 특정 폴더
+
+# 3. 커밋
+git commit -m "feat: Add new feature"
+
+# 4. 원격 저장소에 푸시
+git push -u origin feature/feature-name
+
+# 5. GitHub 웹에서 PR 생성
+# "Compare & pull request" 버튼 클릭
+```
+
+### PR 본문 작성 예시
+```markdown
+## 변경 사항
+- ProductService에 재고 감소 메서드 추가
+- 재고 부족 시 예외 처리 로직 구현
+
+## 기술적 세부사항
+- @Modifying, @Transactional 어노테이션 사용
+- Native query로 성능 최적화
+
+## 테스트
+- [x] 재고 감소 정상 동작 확인
+- [x] 재고 부족 시 예외 발생 확인
+```
+
+---
+
+## 4. Merge 옵션
+
+### 1. Merge commit (기본, 추천)
+```
+master: A - B - C - M (merge)
+             \     /
+feature:      D - E
+```
+- 모든 커밋 히스토리 보존
+- Merge 기록 명확
+
+### 2. Squash and merge
+```
+master: A - B - C - D' (feature 모든 커밋 합침)
+```
+- PR의 여러 커밋을 1개로 압축
+- 히스토리 깔끔
+
+### 3. Rebase and merge
+```
+master: A - B - C - D - E
+```
+- 일직선 히스토리
+- Merge 커밋 없음
+
+---
+
+## 5. 브랜치 관리
+
+### 브랜치 확인
+```bash
+# 로컬 브랜치만 보기
+git branch
+
+# 원격 브랜치까지 전부 보기
+git branch -a
+
+# 원격 브랜치만 보기
+git branch -r
+```
+
+### 결과 예시
+```bash
+$ git branch -a
+  feature/repository
+* master                          ← * = 현재 브랜치
+  remotes/origin/master
+  remotes/origin/feature/repository
+```
+
+### 브랜치 삭제
+```bash
+# 로컬 브랜치 삭제 (안전)
+git branch -d feature/repository
+
+# 로컬 브랜치 강제 삭제
+git branch -D feature/repository
+
+# 원격 브랜치 삭제
+git push origin --delete feature/repository
+```
+
+### Merge 후 정리
+```bash
+# 1. master로 이동
+git checkout master
+
+# 2. 최신 코드 받기
+git pull origin master
+
+# 3. 로컬 브랜치 삭제
+git branch -d feature/repository
+
+# 4. GitHub에서 삭제된 원격 브랜치 정리
+git fetch --prune
+# 또는
+git fetch -p
+```
+
+---
+
+## 6. 자주 쓰는 명령어
+
+### 코드 확인
+```bash
+# 변경사항 요약
+git diff --stat
+
+# 최근 커밋 로그
+git log --oneline -5
+
+# 특정 커밋 상세 보기
+git show <commit-hash>
+```
+
+### 브랜치 이동
+```bash
+# 브랜치 전환
+git checkout master
+git checkout feature/branch-name
+
+# 새 브랜치 생성하며 전환
+git checkout -b feature/new-branch
+```
+
+### 커밋 관리
+```bash
+# 여러 명령어 순차 실행
+git add . && git commit -m "message" && git push
+
+# 마지막 커밋 메시지 수정
+git commit --amend -m "new message"
+```
+
+---
+
+## 7. GitHub CLI (선택사항)
+
+### 설치
+```powershell
+# PowerShell에서
+winget install --id GitHub.cli
+
+# 설치 후 터미널 재시작 필수!
+```
+
+### 주요 명령어
+```bash
+# PR 생성
+gh pr create --title "제목" --body "설명"
+
+# PR 상태 확인
+gh pr status
+
+# PR 보기
+gh pr view
+
+# CI 확인
+gh pr checks
+```
+
+---
+
+## 8. 문제 해결
+
+### 원격 브랜치 정보 오래됨
+```bash
+# GitHub 최신 상태 동기화
+git fetch --prune
+```
+
+### 줄바꿈 문자 변경 (CRLF ↔ LF)
+```
+Windows:    \r\n  (CRLF)
+Mac/Linux:  \n    (LF)
+
+→ 코드는 안 바뀌고 형식만 바뀜
+→ Git은 "수정됨"으로 표시
+→ 무시하고 진행해도 됨
+```
+
+### IntelliJ 터미널 환경변수 갱신 안됨
+```
+해결: IntelliJ 완전 재시작
+또는: 터미널 세션 종료 후 재시작
+```
+
+---
+
+## 9. 실무 팁
+
+### Git 명령어 vs GitHub CLI
+- **Git CLI 사용률**: 95%+ (add, commit, push 등)
+- **gh CLI로 PR 생성**: 20-30%
+- **웹에서 PR 생성**: 70-80% (템플릿, 리뷰어 지정 편함)
+
+### PR 후 브랜치 관리
+- **대부분 삭제**: master에 이미 합쳐졌으므로 불필요
+- **목록 정리**: 브랜치가 쌓이면 지저분함
+- **필요 시 재생성**: 나중에 작업하면 새 브랜치 만들면 됨
+
+### 커밋 규칙
+- **제목 50자 이내**
+- **제목 첫 글자 대문자**
+- **제목 끝에 마침표 없음**
+- **명령문 사용** (Add, Fix, Update)

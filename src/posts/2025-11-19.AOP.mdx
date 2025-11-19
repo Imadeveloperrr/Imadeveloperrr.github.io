@@ -1,0 +1,1289 @@
+---
+title: "AOP와 어노테이션 완벽 가이드"
+date: "2025-11-19"
+author: "Sungho"
+tags: ["Spring", "Anotation", "java", "AOP"]
+description: "헷갈리는 개념들 정리"
+---
+
+# AOP와 어노테이션 완벽 가이드
+## 헷갈리는 개념들을 쉽게 정리
+
+---
+
+## 목차
+1. [핵심 용어 5개 완벽 정리](#1-핵심-용어-5개-완벽-정리)
+2. [@Transactional은 왜 AOP인가?](#2-transactional은-왜-aop인가)
+3. [AOP와 프록시는 무슨 관계?](#3-aop와-프록시는-무슨-관계)
+4. [리플렉션 vs 프록시](#4-리플렉션-vs-프록시)
+5. [커스터마이징이란?](#5-커스터마이징이란)
+6. [전체 흐름 한눈에 보기](#6-전체-흐름-한눈에-보기)
+7. [실전 예제](#7-실전-예제)
+
+---
+
+## 1. 핵심 용어 5개 완벽 정리
+
+### 1.1 리플렉션 (Reflection)
+
+**한 줄 요약:** 실행 중에 클래스 정보를 들여다보는 X-ray
+
+**비유:**
+- 완성된 건물의 설계도를 보는 것
+- "이 건물에 방이 몇 개지? 엘리베이터는 어디 있지?"
+
+**코드 예시:**
+```java
+// 리플렉션으로 클래스 정보 읽기
+Class<?> clazz = UserService.class;
+
+// "이 클래스에 어떤 메서드가 있지?"
+Method[] methods = clazz.getMethods();
+for (Method method : methods) {
+    System.out.println("메서드: " + method.getName());
+}
+
+// "updateUser 메서드에 @Transactional이 붙어있나?"
+Method updateMethod = clazz.getMethod("updateUser");
+if (updateMethod.isAnnotationPresent(Transactional.class)) {
+    System.out.println("트랜잭션 필요!");
+}
+
+// "이 클래스에 어떤 필드가 있지?"
+Field[] fields = clazz.getDeclaredFields();
+```
+
+**역할:** 정보를 "읽기만" 함 (분석 도구)
+
+---
+
+### 1.2 프록시 (Proxy)
+
+**한 줄 요약:** 원본 객체를 감싸서 대신 일하는 대리인
+
+**비유:**
+- 연예인(원본)과 매니저(프록시)
+- 팬이 연예인한테 연락하면 → 매니저가 받아서 → 연예인한테 전달
+
+**코드 예시:**
+```java
+// 원본 객체
+public class UserService {
+    public void updateUser() {
+        System.out.println("사용자 업데이트");
+    }
+}
+
+// 프록시 객체 (대리인)
+public class UserServiceProxy extends UserService {
+    private UserService real = new UserService();  // 진짜 객체
+
+    @Override
+    public void updateUser() {
+        // Before: 추가 작업
+        System.out.println("트랜잭션 시작");
+
+        // 진짜 메서드 호출
+        real.updateUser();
+
+        // After: 추가 작업
+        System.out.println("트랜잭션 커밋");
+    }
+}
+
+// 사용
+UserService service = new UserServiceProxy();  // 프록시 사용
+service.updateUser();
+
+// 출력:
+// 트랜잭션 시작
+// 사용자 업데이트
+// 트랜잭션 커밋
+```
+
+**역할:** 실제로 "동작"함 (대리인)
+
+---
+
+### 1.3 AOP (Aspect Oriented Programming)
+
+**한 줄 요약:** 중복되는 코드를 한 곳에 모아서 관리하는 방식
+
+**비유:**
+- 모든 방에 각각 보안 카메라 설치 (기존 방식)
+- vs 중앙 관제실에서 모든 방 모니터링 (AOP)
+
+**문제 상황:**
+```java
+// 모든 메서드마다 같은 코드 반복
+public class UserService {
+
+    public void createUser() {
+        System.out.println("트랜잭션 시작");  // 반복!
+        System.out.println("로깅");          // 반복!
+
+        userRepository.save(user);  // 실제 로직
+
+        System.out.println("트랜잭션 종료");  // 반복!
+    }
+
+    public void updateUser() {
+        System.out.println("트랜잭션 시작");  // 또 반복!
+        System.out.println("로깅");          // 또 반복!
+
+        userRepository.update(user);  // 실제 로직
+
+        System.out.println("트랜잭션 종료");  // 또 반복!
+    }
+}
+```
+
+**AOP로 해결:**
+```java
+// 비즈니스 로직만 남김
+public class UserService {
+    public void createUser() {
+        userRepository.save(user);  // 깔끔!
+    }
+
+    public void updateUser() {
+        userRepository.update(user);  // 깔끔!
+    }
+}
+
+// 공통 로직은 AOP로 분리
+@Aspect
+@Component
+public class TransactionAspect {
+
+    @Around("execution(* com.example.service.*.*(..))")
+    public Object handleTransaction(ProceedingJoinPoint joinPoint) throws Throwable {
+        System.out.println("트랜잭션 시작");
+        System.out.println("로깅");
+
+        Object result = joinPoint.proceed();  // 실제 메서드 실행
+
+        System.out.println("트랜잭션 종료");
+        return result;
+    }
+}
+```
+
+**역할:** 중복 코드 제거 (개념)
+
+---
+
+### 1.4 메타데이터 (Metadata)
+
+**한 줄 요약:** 데이터에 대한 데이터 (데이터를 설명하는 정보)
+
+**비유:**
+- 책의 내용 = 데이터
+- 책의 제목, 저자, 출판일 = 메타데이터
+
+**코드 예시:**
+```java
+// 실제 데이터 (코드)
+public void updateUser() {
+    userRepository.save(user);
+}
+
+// 메타데이터 (코드에 대한 정보)
+@Transactional  // "이 메서드는 트랜잭션이 필요해요"
+@LogExecutionTime  // "실행 시간을 측정해주세요"
+public void updateUser() {
+    userRepository.save(user);
+}
+```
+
+**역할:** 코드에 추가 정보를 붙임
+
+---
+
+### 1.5 어노테이션 (Annotation)
+
+**한 줄 요약:** 코드에 메타데이터를 붙이는 방법 (@ 기호)
+
+**비유:**
+- 포스트잇 메모
+- 코드에 "이렇게 처리해주세요" 라고 적어두는 것
+
+**코드 예시:**
+```java
+// 어노테이션 없는 평범한 메서드
+public void updateUser() {
+    userRepository.save(user);
+}
+
+// 어노테이션이 붙은 메서드
+@Transactional  // Spring이 읽어서 트랜잭션 처리
+@CacheEvict("users")  // Spring이 읽어서 캐시 삭제
+public void updateUser() {
+    userRepository.save(user);
+}
+```
+
+**핵심:** 어노테이션 자체는 아무것도 안 함! 누군가(프레임워크)가 읽어서 처리해야 의미가 있음
+
+**역할:** 코드에 표시만 함
+
+---
+
+### 용어 비교표
+
+| 용어 | 역할 | 비유 | 실제 동작 |
+|------|------|------|----------|
+| 리플렉션 | 정보 읽기 | X-ray | 읽기만 함 |
+| 프록시 | 대신 일하기 | 매니저 | 실제로 실행 |
+| AOP | 중복 제거 | 중앙 관제실 | 개념 |
+| 메타데이터 | 추가 정보 | 책 표지 정보 | 설명만 함 |
+| 어노테이션 | 표시 | 포스트잇 | 표시만 함 |
+
+---
+
+## 2. @Transactional은 왜 AOP인가?
+
+### 핵심 질문
+
+**"중복 코드를 제거하는 게 AOP인 건 알겠는데, @Transactional이 왜 AOP냐?"**
+
+### 답변: 트랜잭션 코드가 중복되는 문제를 AOP로 해결했기 때문!
+
+---
+
+### 문제 상황: 트랜잭션 코드 중복
+
+```java
+@Service
+public class UserService {
+
+    @Autowired
+    private PlatformTransactionManager txManager;
+
+    public void createUser(User user) {
+        // 트랜잭션 시작 (중복!)
+        TransactionStatus status = txManager.getTransaction(
+            new DefaultTransactionDefinition()
+        );
+
+        try {
+            userRepository.save(user);  // 실제 로직
+            txManager.commit(status);  // 중복!
+        } catch (Exception e) {
+            txManager.rollback(status);  // 중복!
+            throw e;
+        }
+    }
+
+    public void updateUser(User user) {
+        // 트랜잭션 시작 (또 중복!)
+        TransactionStatus status = txManager.getTransaction(
+            new DefaultTransactionDefinition()
+        );
+
+        try {
+            userRepository.update(user);  // 실제 로직
+            txManager.commit(status);  // 또 중복!
+        } catch (Exception e) {
+            txManager.rollback(status);  // 또 중복!
+            throw e;
+        }
+    }
+}
+```
+
+**보이죠? 트랜잭션 시작/커밋/롤백이 계속 반복!**
+
+---
+
+### AOP로 해결
+
+```java
+// 개발자는 비즈니스 로직만 작성
+@Service
+public class UserService {
+
+    @Transactional  // ← 이것만 붙이면 됨!
+    public void createUser(User user) {
+        userRepository.save(user);  // 깔끔!
+    }
+
+    @Transactional
+    public void updateUser(User user) {
+        userRepository.update(user);  // 깔끔!
+    }
+}
+
+// Spring이 프록시로 트랜잭션 처리
+public class UserService$$Proxy extends UserService {
+    private UserService real;
+    private PlatformTransactionManager txManager;
+
+    @Override
+    public void createUser(User user) {
+        TransactionStatus status = txManager.getTransaction(...);
+        try {
+            real.createUser(user);  // 진짜 메서드
+            txManager.commit(status);
+        } catch (Exception e) {
+            txManager.rollback(status);
+            throw e;
+        }
+    }
+}
+```
+
+---
+
+### @Transactional이 AOP인 3가지 이유
+
+#### ① 공통 관심사 분리 (AOP의 핵심 목표)
+
+```
+핵심 관심사:
+- userRepository.save(user)
+- userRepository.update(user)
+
+공통 관심사:
+- 트랜잭션 시작
+- 트랜잭션 커밋
+- 트랜잭션 롤백
+```
+
+**@Transactional = 공통 관심사를 분리!**
+
+#### ② 프록시를 사용 (AOP의 구현 방법)
+
+```
+사용자 호출
+    ↓
+프록시가 가로챔 ← 여기서 트랜잭션!
+    ↓
+트랜잭션 시작
+    ↓
+진짜 메서드 실행
+    ↓
+트랜잭션 커밋
+```
+
+**프록시 = AOP를 구현하는 방법!**
+
+#### ③ Spring AOP 프레임워크 사용
+
+```java
+// Spring의 TransactionAspect (내부)
+@Aspect
+public class TransactionAspect {
+
+    @Around("@annotation(Transactional)")
+    public Object handleTransaction(ProceedingJoinPoint joinPoint) {
+        TransactionStatus status = txManager.getTransaction(...);
+        try {
+            Object result = joinPoint.proceed();
+            txManager.commit(status);
+            return result;
+        } catch (Exception e) {
+            txManager.rollback(status);
+            throw e;
+        }
+    }
+}
+```
+
+---
+
+### 정리
+
+```
+트랜잭션 코드 중복
+    ↓
+AOP로 해결 (중복 제거)
+    ↓
+프록시로 구현 (가로채기)
+    ↓
+@Transactional 탄생
+```
+
+**@Transactional = AOP를 사용해서 트랜잭션 중복 코드를 제거한 것!**
+
+---
+
+## 3. AOP와 프록시는 무슨 관계?
+
+### 핵심 질문
+
+**"중복 코드를 한 곳으로 모으는 게 AOP인 건 알겠는데, 그게 프록시랑 무슨 관계냐?"**
+
+### 답변: 프록시는 AOP를 구현하는 방법!
+
+```
+AOP = 무엇을 (중복 제거)
+프록시 = 어떻게 (가로채기)
+```
+
+---
+
+### 문제 상황
+
+**모든 메서드에 실행시간 측정이 필요함**
+
+```java
+public class UserService {
+
+    public void createUser() {
+        long start = System.currentTimeMillis();  // 중복!
+        userRepository.save(user);
+        long end = System.currentTimeMillis();  // 중복!
+        System.out.println("실행시간: " + (end - start));
+    }
+
+    public void updateUser() {
+        long start = System.currentTimeMillis();  // 또 중복!
+        userRepository.update(user);
+        long end = System.currentTimeMillis();  // 또 중복!
+        System.out.println("실행시간: " + (end - start));
+    }
+}
+```
+
+---
+
+### 해결책 1: 메서드로 빼기? (실패)
+
+```java
+public void createUser() {
+    measureTime(() -> {
+        userRepository.save(user);
+    });
+}
+
+private void measureTime(Runnable task) {
+    long start = System.currentTimeMillis();
+    task.run();
+    long end = System.currentTimeMillis();
+    System.out.println("실행시간: " + (end - start));
+}
+```
+
+**문제:** 여전히 모든 메서드마다 `measureTime()` 써야 함 😢
+
+---
+
+### 해결책 2: 프록시 사용! (성공)
+
+**핵심 아이디어:**
+> "메서드 호출을 중간에서 가로채면 되지 않을까?"
+
+```java
+// 원본 (깔끔!)
+public class UserService {
+    public void createUser() {
+        userRepository.save(user);
+    }
+}
+
+// 프록시 (중간에서 가로챔)
+public class UserServiceProxy extends UserService {
+    private UserService real = new UserService();
+
+    @Override
+    public void createUser() {
+        long start = System.currentTimeMillis();  // Before
+        real.createUser();  // 진짜 메서드
+        long end = System.currentTimeMillis();  // After
+        System.out.println("실행시간: " + (end - start));
+    }
+}
+```
+
+**이제 원본은 깔끔하고, 시간 측정은 프록시가 처리!**
+
+---
+
+### 프록시가 필요한 이유
+
+**프록시 없이는 "가로채기"가 불가능!**
+
+```
+프록시 없이:
+사용자 → createUser() 메서드
+       (시간 측정 코드가 메서드 안에 있어야 함)
+
+프록시 사용:
+사용자 → 프록시 → 진짜 메서드
+       ↑
+       여기서 시간 측정!
+```
+
+---
+
+### AOP는?
+
+**AOP = 이 프록시를 자동으로 만들어주는 Spring 기능!**
+
+```java
+// 개발자가 하는 일
+
+// 1. 원본 코드는 깔끔하게
+@Service
+public class UserService {
+    public void createUser() {
+        userRepository.save(user);
+    }
+}
+
+// 2. 공통 로직만 따로 작성 (Aspect)
+@Aspect
+@Component
+public class TimeCheckAspect {
+
+    @Around("execution(* com.example..*(..))")
+    public Object measureTime(ProceedingJoinPoint joinPoint) throws Throwable {
+        long start = System.currentTimeMillis();
+        Object result = joinPoint.proceed();  // 진짜 메서드
+        long end = System.currentTimeMillis();
+        System.out.println("실행시간: " + (end - start));
+        return result;
+    }
+}
+```
+
+**Spring이 자동으로 프록시를 만들어줌!**
+
+---
+
+### 관계 정리
+
+```
+AOP (목표):
+"중복 코드를 분리하고 싶다!"
+    ↓
+문제:
+"메서드 호출을 어떻게 가로채지?"
+    ↓
+해결책:
+"프록시를 사용하자!"
+    ↓
+프록시 (방법):
+호출 가로채기 → 공통 로직 실행 → 원본 호출
+```
+
+### 비유로 이해
+
+```
+식당:
+- 모든 주문에 손 씻기가 필요 (중복 작업)
+- 매니저(프록시)가 처리 (가로채기)
+- 요리사는 요리만 함 (원본)
+→ 매니저 시스템 = AOP
+```
+
+---
+
+## 4. 리플렉션 vs 프록시
+
+### 핵심 질문
+
+**"리플렉션이 프록시야?"**
+
+### 답변: 아니요! 완전히 다른 개념!
+
+```
+리플렉션 = X-ray (분석 도구)
+프록시 = 대리인 (실행 객체)
+```
+
+---
+
+### 비교
+
+| 항목 | 리플렉션 | 프록시 |
+|------|---------|--------|
+| 역할 | 정보 읽기 | 대신 일하기 |
+| 비유 | X-ray 기계 | 매니저 |
+| 결과 | 정보 획득 | 새 객체 생성 |
+| 예시 | "메서드 이름이 뭐지?" | "내가 대신 처리할게" |
+
+---
+
+### 리플렉션 (정보 읽기)
+
+```java
+// 클래스 정보 가져오기
+Class<?> clazz = UserService.class;
+
+// 메서드 정보 읽기
+Method method = clazz.getMethod("updateUser");
+System.out.println("메서드 이름: " + method.getName());
+
+// 어노테이션 확인
+if (method.isAnnotationPresent(Transactional.class)) {
+    System.out.println("@Transactional 발견!");
+}
+
+// 필드 정보 읽기
+Field[] fields = clazz.getDeclaredFields();
+```
+
+**리플렉션 = 분석만 함! 실행은 안 함!**
+
+---
+
+### 프록시 (실제 동작)
+
+```java
+// 원본
+public class UserService {
+    public void updateUser() {
+        System.out.println("업데이트");
+    }
+}
+
+// 프록시
+public class UserServiceProxy extends UserService {
+    private UserService real = new UserService();
+
+    @Override
+    public void updateUser() {
+        System.out.println("트랜잭션 시작");
+        real.updateUser();
+        System.out.println("트랜잭션 커밋");
+    }
+}
+
+// 사용
+UserService service = new UserServiceProxy();
+service.updateUser();
+// 출력:
+// 트랜잭션 시작
+// 업데이트
+// 트랜잭션 커밋
+```
+
+**프록시 = 실제로 동작함!**
+
+---
+
+### 왜 헷갈리나?
+
+**Spring이 프록시를 "만들 때" 리플렉션을 사용하기 때문!**
+
+```java
+// Spring 내부
+
+// Step 1: 리플렉션으로 정보 읽기
+Class<?> clazz = UserService.class;
+Method method = clazz.getMethod("updateUser");
+
+// "@Transactional이 붙어있네?"
+if (method.isAnnotationPresent(Transactional.class)) {
+
+    // Step 2: 프록시 생성
+    UserService proxy = createProxy(clazz);
+}
+```
+
+### 관계
+
+```
+리플렉션 (도구) → 프록시 (결과)
+   분석        →   생성
+```
+
+---
+
+### 비유
+
+```
+건축 현장:
+리플렉션 = 설계도 보기 ("방이 몇 개지?")
+프록시 = 건물 관리인 (실제로 방문객 관리)
+
+식당:
+리플렉션 = 메뉴판 보기 ("파스타 가격은?")
+프록시 = 웨이터 (실제로 주문 받고 서빙)
+```
+
+---
+
+## 5. 커스터마이징이란?
+
+### 핵심 질문
+
+**"어노테이션을 커스터마이징한다는 게 뭔데?"**
+
+### 답변: 내가 직접 어노테이션을 만드는 것!
+
+```
+Spring 어노테이션 = 남이 만든 것 (기성품)
+커스텀 어노테이션 = 내가 만든 것 (맞춤 제작)
+```
+
+---
+
+### 비교
+
+#### Spring이 제공하는 어노테이션 (그냥 사용)
+
+```java
+@Transactional  // ← Spring이 만들어놓음
+public void updateUser() {
+    userRepository.save(user);
+}
+
+@Cacheable  // ← Spring이 만들어놓음
+public User getUser(Long id) {
+    return userRepository.findById(id);
+}
+```
+
+**이건 "사용"**
+
+#### 커스텀 어노테이션 (내가 만듦)
+
+```java
+@LogExecutionTime  // ← 내가 직접 만듦!
+public void processOrder() {
+    orderService.process();
+}
+
+@CheckPermission  // ← 내가 직접 만듦!
+public void deleteUser(Long id) {
+    userRepository.delete(id);
+}
+```
+
+**이게 "커스터마이징"**
+
+---
+
+### 왜 커스터마이징하나?
+
+#### ① Spring에 없는 기능
+
+```java
+@LogExecutionTime  // Spring에 없음 → 내가 만듦
+@RateLimit         // Spring에 없음 → 내가 만듦
+```
+
+#### ② 내 프로젝트 특화 기능
+
+```java
+@ValidStock       // 우리 쇼핑몰만의 재고 검증
+@TrackUserAction  // 우리 서비스만의 사용자 추적
+```
+
+#### ③ 코드 중복 제거
+
+```java
+// Before: 반복 코드
+public void method1() {
+    log.info("시작");
+    checkPermission();
+    // ...
+    log.info("종료");
+}
+
+// After: 어노테이션으로 해결
+@LogAndCheckPermission
+public void method1() {
+    // ...
+}
+```
+
+---
+
+### 커스터마이징 3단계
+
+#### Step 1: 어노테이션 정의
+
+```java
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface LogExecutionTime {
+    // 비어있어도 됨!
+}
+```
+
+#### Step 2: 동작 구현 (AOP)
+
+```java
+@Aspect
+@Component
+public class LogExecutionTimeAspect {
+
+    @Around("@annotation(LogExecutionTime)")
+    public Object logTime(ProceedingJoinPoint joinPoint) throws Throwable {
+        long start = System.currentTimeMillis();
+
+        Object result = joinPoint.proceed();  // 실제 메서드
+
+        long end = System.currentTimeMillis();
+        System.out.println("실행시간: " + (end - start) + "ms");
+
+        return result;
+    }
+}
+```
+
+#### Step 3: 사용
+
+```java
+@Service
+public class OrderService {
+
+    @LogExecutionTime  // ← 내가 만든 어노테이션!
+    public void createOrder() {
+        orderRepository.save(order);
+    }
+}
+```
+
+---
+
+### 비유
+
+```
+옷:
+@Transactional  ← 옷가게에서 사는 기성품
+@LogExecutionTime  ← 맞춤 제작
+
+요리:
+@Cacheable  ← 식당 메뉴
+@RateLimit  ← 집에서 레시피 만들어 요리
+```
+
+---
+
+## 6. 전체 흐름 한눈에 보기
+
+### Spring이 @Transactional을 처리하는 전체 과정
+
+```
+1. 개발자가 코드 작성
+   @Transactional
+   public void updateUser() { }
+
+2. 애플리케이션 시작
+
+3. Spring이 클래스 스캔
+   "모든 Bean을 찾자"
+
+4. 리플렉션으로 어노테이션 확인
+   Class clazz = UserService.class;
+   Method method = clazz.getMethod("updateUser");
+   if (method.isAnnotationPresent(Transactional.class))
+   → "어? @Transactional 발견!"
+
+5. 프록시 생성 결정
+   "이 클래스는 프록시가 필요해"
+
+6. 프록시 객체 생성 (CGLIB)
+   UserService$$Proxy 클래스 동적 생성
+
+7. TransactionInterceptor 연결
+   프록시가 트랜잭션 처리를 위임할 객체
+
+8. Bean으로 등록
+   Spring Container에 프록시 등록 (원본 X)
+
+9. 실행
+   userService.updateUser() 호출
+   ↓
+   프록시의 updateUser() 실행
+   ↓
+   TransactionInterceptor가 트랜잭션 시작
+   ↓
+   진짜 updateUser() 실행
+   ↓
+   TransactionInterceptor가 트랜잭션 커밋
+```
+
+---
+
+### 다이어그램
+
+```
+┌─────────────────────────────────────────┐
+│  개발자 코드                              │
+│  @Transactional                          │
+│  public void updateUser() { }            │
+└──────────────┬──────────────────────────┘
+               ↓
+┌─────────────────────────────────────────┐
+│  Spring 시작                             │
+│  - Bean 스캔                             │
+│  - 리플렉션으로 어노테이션 확인           │
+└──────────────┬──────────────────────────┘
+               ↓
+┌─────────────────────────────────────────┐
+│  프록시 생성                             │
+│  UserService$$Proxy extends UserService  │
+└──────────────┬──────────────────────────┘
+               ↓
+┌─────────────────────────────────────────┐
+│  Bean 등록                               │
+│  Container에 프록시 등록                 │
+└──────────────┬──────────────────────────┘
+               ↓
+┌─────────────────────────────────────────┐
+│  실행                                    │
+│  프록시 → 트랜잭션 시작 → 원본 → 커밋    │
+└─────────────────────────────────────────┘
+```
+
+---
+
+### 핵심 요소들의 역할
+
+```
+리플렉션:
+어노테이션 확인 (분석)
+
+AOP:
+중복 제거 목표 (개념)
+
+프록시:
+가로채기 구현 (방법)
+
+@Transactional:
+개발자 편의 (표시)
+
+Spring:
+전체 자동화 (프레임워크)
+```
+
+---
+
+## 7. 실전 예제
+
+### 예제 1: 실행시간 측정 (@LogExecutionTime)
+
+#### 정의
+```java
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface LogExecutionTime {
+    String value() default "";  // 추가 메시지
+}
+```
+
+#### 구현
+```java
+@Aspect
+@Component
+@Slf4j
+public class LogExecutionTimeAspect {
+
+    @Around("@annotation(LogExecutionTime)")
+    public Object logTime(ProceedingJoinPoint joinPoint) throws Throwable {
+        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+        String methodName = signature.getMethod().getName();
+        String className = signature.getDeclaringType().getSimpleName();
+
+        long start = System.currentTimeMillis();
+
+        log.info("🚀 [{}#{}] 시작", className, methodName);
+
+        try {
+            Object result = joinPoint.proceed();
+
+            long end = System.currentTimeMillis();
+            long executionTime = end - start;
+
+            log.info("✅ [{}#{}] 완료 ({}ms)", className, methodName, executionTime);
+
+            if (executionTime > 3000) {
+                log.warn("⚠️ 실행 시간이 3초 초과: {}ms", executionTime);
+            }
+
+            return result;
+
+        } catch (Exception e) {
+            long end = System.currentTimeMillis();
+            log.error("❌ [{}#{}] 실패 ({}ms)",
+                     className, methodName, end - start);
+            throw e;
+        }
+    }
+}
+```
+
+#### 사용
+```java
+@Service
+public class OrderService {
+
+    @LogExecutionTime
+    public void processOrder(Order order) {
+        // 복잡한 주문 처리 로직
+        orderRepository.save(order);
+    }
+}
+```
+
+#### 결과
+```
+2025-01-15 10:30:00 INFO  🚀 [OrderService#processOrder] 시작
+2025-01-15 10:30:02 INFO  ✅ [OrderService#processOrder] 완료 (2000ms)
+```
+
+---
+
+### 예제 2: API 호출 제한 (@RateLimit)
+
+#### 정의
+```java
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface RateLimit {
+    int value() default 100;  // 허용 횟수
+    long period() default 60;  // 시간(초)
+}
+```
+
+#### 구현
+```java
+@Aspect
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class RateLimitAspect {
+
+    private final StringRedisTemplate redisTemplate;
+
+    @Around("@annotation(rateLimit)")
+    public Object checkRateLimit(ProceedingJoinPoint joinPoint,
+                                  RateLimit rateLimit) throws Throwable {
+
+        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+        String key = "rate_limit:" + signature.getMethod().getName();
+
+        // 현재 카운트 조회
+        String countStr = redisTemplate.opsForValue().get(key);
+        int currentCount = countStr == null ? 0 : Integer.parseInt(countStr);
+
+        // 제한 확인
+        if (currentCount >= rateLimit.value()) {
+            log.warn("Rate limit exceeded: {}", key);
+            throw new RateLimitExceededException(
+                String.format("API 호출 제한 초과 (%d초 후 다시 시도)",
+                             rateLimit.period())
+            );
+        }
+
+        // 카운트 증가
+        redisTemplate.opsForValue().increment(key);
+
+        // 첫 요청이면 TTL 설정
+        if (currentCount == 0) {
+            redisTemplate.expire(key, Duration.ofSeconds(rateLimit.period()));
+        }
+
+        log.info("Rate limit: {}/{}", currentCount + 1, rateLimit.value());
+
+        return joinPoint.proceed();
+    }
+}
+```
+
+#### 사용
+```java
+@RestController
+@RequestMapping("/api/products")
+public class ProductController {
+
+    @GetMapping("/{id}")
+    @RateLimit(value = 100, period = 60)  // 1분에 100번
+    public Product getProduct(@PathVariable Long id) {
+        return productService.getProduct(id);
+    }
+
+    @PostMapping
+    @RateLimit(value = 10, period = 60)  // 1분에 10번
+    public Product createProduct(@RequestBody Product product) {
+        return productService.createProduct(product);
+    }
+}
+```
+
+---
+
+### 예제 3: 재고 검증 (@ValidStock)
+
+#### 정의
+```java
+@Target(ElementType.FIELD)
+@Retention(RetentionPolicy.RUNTIME)
+@Constraint(validatedBy = StockValidator.class)
+public @interface ValidStock {
+    String message() default "재고가 부족합니다";
+    Class<?>[] groups() default {};
+    Class<? extends Payload>[] payload() default {};
+    int min() default 1;
+}
+```
+
+#### 구현
+```java
+public class StockValidator implements ConstraintValidator<ValidStock, Integer> {
+
+    private int min;
+
+    @Override
+    public void initialize(ValidStock annotation) {
+        this.min = annotation.min();
+    }
+
+    @Override
+    public boolean isValid(Integer value, ConstraintValidatorContext context) {
+        if (value == null) {
+            return true;  // @NotNull로 검증
+        }
+
+        if (value < min) {
+            context.disableDefaultConstraintViolation();
+            context.buildConstraintViolationWithTemplate(
+                String.format("재고는 최소 %d개 이상이어야 합니다", min)
+            ).addConstraintViolation();
+            return false;
+        }
+
+        return true;
+    }
+}
+```
+
+#### 사용
+```java
+@Data
+public class OrderRequest {
+
+    @NotNull(message = "상품 ID는 필수입니다")
+    private Long productId;
+
+    @ValidStock(min = 1, message = "주문 수량은 1개 이상이어야 합니다")
+    private Integer quantity;
+}
+
+@RestController
+public class OrderController {
+
+    @PostMapping("/orders")
+    public ResponseEntity<?> createOrder(@Valid @RequestBody OrderRequest request) {
+        orderService.createOrder(request);
+        return ResponseEntity.ok("주문 성공");
+    }
+}
+```
+
+---
+
+### 예제 4: 권한 체크 (@RequireAdmin)
+
+#### 정의
+```java
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface RequireAdmin {
+    String message() default "관리자 권한이 필요합니다";
+}
+```
+
+#### 구현
+```java
+@Aspect
+@Component
+@Slf4j
+public class AdminCheckAspect {
+
+    @Before("@annotation(requireAdmin)")
+    public void checkAdmin(RequireAdmin requireAdmin) {
+        User currentUser = SecurityUtil.getCurrentUser();
+
+        if (currentUser == null) {
+            throw new UnauthorizedException("로그인이 필요합니다");
+        }
+
+        if (!currentUser.hasRole("ADMIN")) {
+            log.warn("권한 없는 접근 시도: user={}", currentUser.getId());
+            throw new ForbiddenException(requireAdmin.message());
+        }
+
+        log.info("관리자 권한 확인: user={}", currentUser.getId());
+    }
+}
+```
+
+#### 사용
+```java
+@Service
+public class UserService {
+
+    @RequireAdmin
+    public void deleteAllUsers() {
+        log.info("모든 사용자 삭제");
+        userRepository.deleteAll();
+    }
+
+    @RequireAdmin(message = "시스템 설정은 관리자만 변경할 수 있습니다")
+    public void updateSystemConfig(SystemConfig config) {
+        configRepository.save(config);
+    }
+}
+```
+
+---
+
+## 8. 최종 정리
+
+### 핵심 개념 관계도
+
+```
+          AOP (개념)
+         "중복 제거"
+              ↓
+      ┌───────┴───────┐
+      ↓               ↓
+   목표            구현 방법
+"공통 관심사        프록시
+   분리"         "가로채기"
+      ↓               ↓
+  @Transactional  UserService$$Proxy
+  @Cacheable      (자동 생성)
+  @Async
+      ↓
+  리플렉션이 읽음
+  (어노테이션 확인)
+```
+
+### 용어 한 줄 정리
+
+| 용어 | 한 줄 정리 |
+|------|-----------|
+| 리플렉션 | 클래스 정보를 읽는 X-ray |
+| 프록시 | 원본을 감싸는 대리인 |
+| AOP | 중복 코드를 한 곳에 모으는 방식 |
+| 메타데이터 | 데이터를 설명하는 정보 |
+| 어노테이션 | 코드에 메타데이터를 붙이는 방법 |
+| 커스터마이징 | 내가 직접 어노테이션 만들기 |
+
+### 전체 흐름 요약
+
+```
+1. 개발자: @Transactional 작성
+2. Spring: 리플렉션으로 어노테이션 확인
+3. Spring: 프록시 객체 생성 (AOP 구현)
+4. Spring: Bean으로 등록
+5. 실행: 프록시가 트랜잭션 처리
+```
+
+### 관계 한 줄
+
+```
+리플렉션(읽기) → 프록시(생성) → AOP(동작) → @Transactional(편의)
+```
+
+---
+
+**이제 AOP와 어노테이션의 모든 개념이 연결되었습니다! 🎉**

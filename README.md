@@ -1,113 +1,34 @@
-# Sungho's Portfolio - Aerial Theme
+# Imadeveloperrr.github.io
 
-HTML5 UP의 Aerial 템플릿 기반 미니멀 포트폴리오 사이트
+완전히 초기화된 GitHub Pages 블로그 저장소입니다. 지금은 `Hello, world!` 한 페이지만 있고, 원하는 스타일과 페이지를 자유롭게 추가할 수 있습니다.
 
-## ✨ 특징
+## 지금 상태
+- 테마, 외부 에셋 없이 순수 HTML/CSS
+- 메인 페이지: `index.html` 단일 파일
+- `.nojekyll` 덕분에 원하는 구조로 정적 파일을 배치 가능
 
-- 🎨 깔끔하고 미니멀한 디자인
-- 📱 완벽한 반응형
-- 🖼️ 배경 이미지/동영상 지원
-- 🔗 소셜 링크 (GitHub, Blog, Email)
+## 로컬에서 보기
+브라우저로 `index.html`을 직접 열면 바로 확인할 수 있습니다.
 
-## 🚀 배포하기
+## 수정/확장 팁
+- `index.html`을 열어 텍스트, 색상, 레이아웃을 바로 수정하세요.
+- 이미지나 스타일을 추가하려면 `assets/` 같은 폴더를 새로 만들어 사용하면 됩니다.
+- 여러 페이지를 만들면 서로 링크를 걸어 간단한 사이트 구조를 만들 수 있습니다.
 
-```bash
-cd C:\Users\sungho\Desktop\Imadeveloperrr2.github.io
+## GitHub Pages 배포
+1. 변경 사항을 커밋하고 푸시합니다.
+   ```bash
+   git add .
+   git commit -m "Start clean blog"
+   git push
+   ```
+2. GitHub → Settings → Pages에서 `main` 브랜치와 `/ (root)`를 선택합니다.
+3. 잠시 후 `https://Imadeveloperrr.github.io`에서 확인하세요.
 
-# Git 초기화
-git init
-git add .
-git commit -m "Initial portfolio site"
-
-# GitHub 레포지토리 생성 후
-git remote add origin https://github.com/Imadeveloperrr/Imadeveloperrr2.github.io.git
-git branch -M main
-git push -u origin main
+## 폴더 구조
 ```
-
-**GitHub Settings → Pages → Source: main branch, / (root)**
-
-5분 후: `https://Imadeveloperrr2.github.io` 접속!
-
-## 🎨 배경 이미지 변경하기
-
-### 방법 1: 이미지 사용
-
-1. 이미지를 `assets/images/bg.jpg`에 저장
-2. `assets/css/main.css` 파일 열기
-3. 다음 부분 찾기:
-
-```css
-#bg:after {
-    background: #348cb2 url("images/overlay.png") repeat;
-}
+Imadeveloperrr.github.io/
+├── index.html
+├── .gitignore
+└── .nojekyll
 ```
-
-4. 이렇게 수정:
-
-```css
-#bg {
-    background: url("../images/bg.jpg") center center;
-    background-size: cover;
-}
-```
-
-### 방법 2: 배경색만 사용
-
-`assets/css/main.css`에서:
-
-```css
-#bg:after {
-    background: #1a1a2e;  /* 원하는 색상 코드 */
-}
-```
-
-### 추천 배경 이미지
-
-- Unsplash: https://unsplash.com/s/photos/code
-- Pexels: https://www.pexels.com/search/technology/
-- 어두운 톤의 코드/기술 관련 이미지 추천
-
-## 📝 내용 수정하기
-
-`index.html` 파일:
-
-```html
-<h1>Sungho</h1>
-<p>Spring Boot Developer &nbsp;&bull;&nbsp; AI Enthusiast &nbsp;&bull;&nbsp; Backend Engineer</p>
-```
-
-원하는 내용으로 바꾸세요!
-
-## 🔗 링크
-
-- **GitHub**: https://github.com/Imadeveloperrr
-- **Blog**: https://Imadeveloperrr.github.io (Jekyll 블로그)
-- **Projects**: https://Imadeveloperrr.github.io/shopingmall
-
-## 📂 구조
-
-```
-Imadeveloperrr2.github.io/
-├── index.html           # 메인 페이지
-├── assets/
-│   ├── css/            # 스타일
-│   ├── images/         # 배경 이미지
-│   └── webfonts/       # 폰트
-└── README.md
-```
-
-## 💡 사용 시나리오
-
-1. **Imadeveloperrr2.github.io** → 메인 랜딩 페이지 (이 템플릿)
-2. **Imadeveloperrr.github.io** → 블로그 (Jekyll)
-3. **Imadeveloperrr.github.io/shopingmall** → 프로젝트 문서
-
-## 📄 라이선스
-
-Aerial Template by [HTML5 UP](https://html5up.net)
-Free for personal and commercial use under the CCA 3.0 license
-
----
-
-**배포 완료 후 접속:** https://Imadeveloperrr2.github.io

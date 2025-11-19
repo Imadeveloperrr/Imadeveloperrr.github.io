@@ -1,13 +1,13 @@
 // 페이지 전환 애니메이션
   export const pageVariants = {
-    initial: { opacity: 0, y: 20 },
+    initial: { opacity: 0, y: 10 },
     animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: -20 }
+    exit: { opacity: 0, y: -10 }
   };
 
   export const pageTransition = {
-    duration: 0.5,
-    ease: 'easeInOut'
+    duration: 0.2,
+    ease: 'easeOut'
   };
 
   // 페이드인 애니메이션

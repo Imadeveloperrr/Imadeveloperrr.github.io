@@ -6,8 +6,9 @@ function SlideIn({ children, delay = 0 }) {
     <motion.div
       initial="hidden"
       animate="visible"
+      exit="hidden"
       variants={slideInVariants}
-      transition={{ delay, duration: 0.5 }}
+      transition={{ delay: 0, duration: 0.2 }}
     >
       {children}
     </motion.div>

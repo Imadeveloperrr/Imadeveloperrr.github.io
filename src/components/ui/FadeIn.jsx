@@ -6,10 +6,11 @@ return (
     <motion.div
         initial="hidden"
         animate="visible"
+        exit="hidden"
         variants={fadeInVariants}
-        transition={{ delay, duration: 0.5 }}
+        transition={{ delay: 0, duration: 0.2 }}
     >
-    
+
     {children}
     </motion.div>
     );

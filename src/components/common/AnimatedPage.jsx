@@ -9,6 +9,7 @@ function AnimatedPage( { children }) {
             exit="exit"
             variants={pageVariants}
             transition={pageTransition}
+            style={{ width: '100%' }}
         >
             {children}
         </motion.div>

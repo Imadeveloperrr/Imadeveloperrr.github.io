@@ -10,29 +10,13 @@ function Blog() {
 
   return (
     <AnimatedPage>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.5, ease: 'easeInOut' }}
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(11, 17, 32, 0.7)',
-          zIndex: -1,
-          pointerEvents: 'none'
-        }}
-      />
       <header className="hero">
-        <FadeIn delay={0.2}>
-          <h1>Blog</h1>
+        <FadeIn delay={0}>
+          <h1>Sungho's Tech Posts</h1>
         </FadeIn>
-        <FadeIn delay={0.3}>
+        <FadeIn delay={0.1}>
           <p className="lead">
-            Development articles and tutorials.
+            기억보단 기록을
           </p>
         </FadeIn>
       </header>
@@ -45,7 +29,7 @@ function Blog() {
             gap: '24px'
           }}>
             {posts.map((post, index) => (
-              <SlideIn key={post.slug} delay={0.5 + index * 0.1}>
+              <SlideIn key={post.slug} delay={0.2 + index * 0.05}>
                 <PostCard post={post} />
               </SlideIn>
             ))}
